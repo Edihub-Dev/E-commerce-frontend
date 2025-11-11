@@ -23,16 +23,16 @@ const paymentOptions = [
     title: "QR Code",
     description: "Scan a QR code and complete payment via your favourite app.",
   },
-  {
-    id: "card",
-    title: "Credit / Debit Card",
-    description: "Visa, Mastercard, Maestro and RuPay cards are accepted.",
-  },
-  {
-    id: "netbanking",
-    title: "Net Banking",
-    description: "Pay securely using your bank's net banking portal.",
-  },
+  // {
+  //   id: "card",
+  //   title: "Credit / Debit Card",
+  //   description: "Visa, Mastercard, Maestro and RuPay cards are accepted.",
+  // },
+  // {
+  //   id: "netbanking",
+  //   title: "Net Banking",
+  //   description: "Pay securely using your bank's net banking portal.",
+  // },
   {
     id: "cod",
     title: "Cash on Delivery",
