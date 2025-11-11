@@ -13,6 +13,16 @@ const OrderDetailsPage = () => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+
+  const apiBaseUrl = useMemo(() => {
+    const configured = import.meta.env.VITE_API_URL;
+    if (configured) {
+      const trimmed = configured.replace(/\/$/, "");
+      return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+    }
+    return "http://localhost:5000/api";
+  }, []);
 
   const handleBackNavigation = () => {
     if (fromAdminOrders) {
@@ -133,6 +143,50 @@ const OrderDetailsPage = () => {
       </div>
     );
   }
+
+  const handleDownloadInvoice = async () => {
+    if (!order?._id) {
+      toast.error("Order details unavailable");
+      return;
+    }
+
+    setDownloadingInvoice(true);
+
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`${apiBaseUrl}/orders/${order._id}/invoice`, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to download invoice");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const fileName = match?.[1] || `invoice-${order._id}.pdf`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      console.error("Invoice download failed", downloadError);
+      toast.error("Unable to download invoice. Please try again.");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
 
   const handleDownloadCsv = () => {
     if (!csvRow) {
@@ -330,17 +384,15 @@ const OrderDetailsPage = () => {
         >
           <Download className="h-4 w-4" /> Export CSV
         </button> */}
-        {order.invoiceUrl && (
-          <a
-            href={order.invoiceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-5 py-3 rounded-xl bg-primary text-white hover:bg-primary-dark inline-flex items-center gap-2"
-          >
-            <Download className="h-4 w-4" />
-            Download Invoice
-          </a>
-        )}
+        <button
+          type="button"
+          onClick={handleDownloadInvoice}
+          disabled={downloadingInvoice}
+          className="px-5 py-3 rounded-xl bg-primary text-white hover:bg-primary-dark disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+        >
+          <Download className="h-4 w-4" />
+          {downloadingInvoice ? "Preparing Invoice..." : "Download Invoice"}
+        </button>
       </div>
     </div>
   );

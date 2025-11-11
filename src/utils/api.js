@@ -177,7 +177,10 @@ export const addAddress = async (payload) => {
 };
 
 export const updateAddress = async (addressId, payload) => {
-  const response = await api.patch(`/user/address/update/${addressId}`, payload);
+  const response = await api.patch(
+    `/user/address/update/${addressId}`,
+    payload
+  );
   return response.data;
 };
 

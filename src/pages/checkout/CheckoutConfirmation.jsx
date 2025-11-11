@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -14,8 +14,20 @@ const CheckoutConfirmation = () => {
   const dispatch = useDispatch();
 
   const [order, setOrder] = useState(location.state?.order || null);
-  const [loading, setLoading] = useState(!location.state?.order && Boolean(orderId));
+  const [loading, setLoading] = useState(
+    !location.state?.order && Boolean(orderId)
+  );
   const [error, setError] = useState(null);
+  const [downloadingInvoice, setDownloadingInvoice] = useState(false);
+
+  const apiBaseUrl = useMemo(() => {
+    const configured = import.meta.env.VITE_API_URL;
+    if (configured) {
+      const trimmed = configured.replace(/\/$/, "");
+      return trimmed.endsWith("/api") ? trimmed : `${trimmed}/api`;
+    }
+    return "http://localhost:5000/api";
+  }, []);
 
   useEffect(() => {
     dispatch(setCheckoutStep("confirmation"));
@@ -55,6 +67,50 @@ const CheckoutConfirmation = () => {
   const handleGoToOrders = () => navigate("/orders");
   const handleContinueShopping = () => navigate("/shop");
 
+  const handleDownloadInvoice = async () => {
+    if (!order?._id) {
+      toast.error("Order details unavailable");
+      return;
+    }
+
+    setDownloadingInvoice(true);
+
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`${apiBaseUrl}/orders/${order._id}/invoice`, {
+        method: "GET",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to download invoice");
+      }
+
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const fileName = match?.[1] || `invoice-${order._id}.pdf`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      console.error("Invoice download failed", downloadError);
+      toast.error("Unable to download invoice. Please try again.");
+    } finally {
+      setDownloadingInvoice(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-10 text-center text-medium-text">
@@ -66,7 +122,9 @@ const CheckoutConfirmation = () => {
   if (error) {
     return (
       <div className="p-10 text-center space-y-4">
-        <p className="text-lg text-secondary font-semibold">Unable to load order</p>
+        <p className="text-lg text-secondary font-semibold">
+          Unable to load order
+        </p>
         <p className="text-medium-text">{error}</p>
         <button
           onClick={handleGoToOrders}
@@ -107,7 +165,9 @@ const CheckoutConfirmation = () => {
               Order placed successfully!
             </h2>
             <p className="text-sm text-medium-text mt-1">
-              Your order ID is <span className="font-medium">#{order._id}</span>. A confirmation email has been sent to {order.shippingAddress?.email}.
+              Your order ID is <span className="font-medium">#{order._id}</span>
+              . A confirmation email has been sent to{" "}
+              {order.shippingAddress?.email}.
             </p>
           </div>
         </motion.div>
@@ -120,7 +180,10 @@ const CheckoutConfirmation = () => {
             </header>
             <ul className="space-y-3 text-sm text-medium-text">
               {order.statusTimeline?.map((event, index) => (
-                <li key={`${event.label}-${index}`} className="flex items-start gap-3">
+                <li
+                  key={`${event.label}-${index}`}
+                  className="flex items-start gap-3"
+                >
                   <span className="mt-1 h-2 w-2 rounded-full bg-primary"></span>
                   <div>
                     <p className="font-medium text-secondary">{event.label}</p>
@@ -134,7 +197,9 @@ const CheckoutConfirmation = () => {
               <li className="flex items-start gap-3">
                 <span className="mt-1 h-2 w-2 rounded-full bg-primary"></span>
                 <div>
-                  <p className="font-medium text-secondary">Estimated delivery</p>
+                  <p className="font-medium text-secondary">
+                    Estimated delivery
+                  </p>
                   <p>{deliveryDate}</p>
                 </div>
               </li>
@@ -142,7 +207,9 @@ const CheckoutConfirmation = () => {
           </section>
 
           <section className="border border-slate-200 rounded-3xl p-6">
-            <h3 className="text-lg font-semibold text-secondary mb-4">Items in this order</h3>
+            <h3 className="text-lg font-semibold text-secondary mb-4">
+              Items in this order
+            </h3>
             <div className="space-y-4">
               {order.items?.map((item, index) => (
                 <div key={`${item.name}-${index}`} className="flex gap-4">
@@ -154,7 +221,9 @@ const CheckoutConfirmation = () => {
                     />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-semibold text-secondary">{item.name}</h4>
+                    <h4 className="font-semibold text-secondary">
+                      {item.name}
+                    </h4>
                     <p className="text-sm text-medium-text mt-1">
                       Qty: {item.quantity}
                       {item.size && ` • Size: ${item.size}`}
@@ -171,12 +240,17 @@ const CheckoutConfirmation = () => {
 
           <section className="border border-slate-200 rounded-3xl p-6 grid md:grid-cols-2 gap-6">
             <div>
-              <h3 className="text-lg font-semibold text-secondary mb-3">Delivery Address</h3>
+              <h3 className="text-lg font-semibold text-secondary mb-3">
+                Delivery Address
+              </h3>
               <div className="space-y-1 text-sm text-medium-text">
-                <p className="font-medium text-secondary">{order.shippingAddress?.fullName}</p>
+                <p className="font-medium text-secondary">
+                  {order.shippingAddress?.fullName}
+                </p>
                 <p>{order.shippingAddress?.addressLine}</p>
                 <p>
-                  {order.shippingAddress?.city}, {order.shippingAddress?.state} - {order.shippingAddress?.pincode}
+                  {order.shippingAddress?.city}, {order.shippingAddress?.state}{" "}
+                  - {order.shippingAddress?.pincode}
                 </p>
                 <p>Mobile: {order.shippingAddress?.mobile}</p>
                 {order.shippingAddress?.alternatePhone && (
@@ -186,7 +260,9 @@ const CheckoutConfirmation = () => {
               </div>
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-secondary mb-3">Payment Summary</h3>
+              <h3 className="text-lg font-semibold text-secondary mb-3">
+                Payment Summary
+              </h3>
               <ul className="space-y-2 text-sm text-medium-text">
                 <li className="flex justify-between">
                   <span>Subtotal</span>
@@ -209,7 +285,8 @@ const CheckoutConfirmation = () => {
                   <span>₹{order.pricing?.total?.toLocaleString?.()}</span>
                 </li>
                 <li className="text-xs text-slate-400 pt-1">
-                  Method: {order.payment?.method?.toUpperCase?.()} • Status: {order.payment?.status}
+                  Method: {order.payment?.method?.toUpperCase?.()} • Status:{" "}
+                  {order.payment?.status}
                 </li>
               </ul>
             </div>
@@ -229,17 +306,15 @@ const CheckoutConfirmation = () => {
           >
             Go to My Orders
           </button>
-          {order.invoiceUrl && (
-            <a
-              href={order.invoiceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-5 py-3 rounded-xl bg-primary text-white hover:bg-primary-dark inline-flex items-center gap-2"
-            >
-              <Download className="h-4 w-4" />
-              Download Invoice
-            </a>
-          )}
+          <button
+            type="button"
+            onClick={handleDownloadInvoice}
+            disabled={downloadingInvoice}
+            className="px-5 py-3 rounded-xl bg-primary text-white hover:bg-primary-dark disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-2"
+          >
+            <Download className="h-4 w-4" />
+            {downloadingInvoice ? "Preparing Invoice..." : "Download Invoice"}
+          </button>
         </div>
       </div>
 
@@ -252,7 +327,8 @@ const CheckoutConfirmation = () => {
           </div>
         </div>
         <div className="rounded-2xl bg-primary/5 border border-primary/20 p-4 text-sm text-medium-text">
-          Need help with your order? Our support team is available 24/7 at support@megamart.com.
+          Need help with your order? Our support team is available 24/7 at
+          support@megamart.com.
         </div>
       </aside>
     </div>
