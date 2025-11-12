@@ -10,9 +10,38 @@ import {
 
 const Shop = () => {
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    getAllProducts().then((res) => setProducts(res.data));
+    let isActive = true;
+
+    const fetchProducts = async () => {
+      setLoading(true);
+      try {
+        const { data } = await getAllProducts({ limit: 60 });
+        if (isActive) {
+          setProducts(data);
+          setError("");
+        }
+      } catch (err) {
+        console.error("Failed to load products", err);
+        if (isActive) {
+          setError(err.message || "Unable to load products. Please try again later.");
+          setProducts([]);
+        }
+      } finally {
+        if (isActive) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchProducts();
+
+    return () => {
+      isActive = false;
+    };
   }, []);
 
   return (
@@ -31,6 +60,19 @@ const Shop = () => {
       >
         Shop All Products
       </motion.h1>
+      {loading && (
+        <div className="py-6 text-center text-sm text-slate-500">
+          Loading products...
+        </div>
+      )}
+      {error && !loading && (
+        <div className="py-6 text-center text-sm text-red-500">{error}</div>
+      )}
+      {!loading && !error && products.length === 0 && (
+        <div className="py-6 text-center text-sm text-slate-500">
+          No products found. Check back soon!
+        </div>
+      )}
       <motion.div
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
         variants={staggerContainer}

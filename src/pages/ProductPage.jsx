@@ -39,18 +39,14 @@ const ProductPage = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
-  // Product images - include the product-specific image plus themed assets
-  const productImages = product
-    ? [
-        product.image,
-        "/assets/products/WHITE_FRONT.png",
-        "/assets/products/WHITE_BACK.png",
-        "/assets/products/WHITE_MODEL.png",
-        "/assets/products/WHITE_MODEL_2.png",
-      ]
-        .filter(Boolean)
-        .filter((src, index, self) => self.indexOf(src) === index)
+  // Product images - show only database-provided sources (gallery, thumbnail, fallback image)
+  const galleryImages = Array.isArray(product?.gallery)
+    ? product.gallery.filter(Boolean)
     : [];
+  const fallbackImages = [product?.thumbnail, product?.image]
+    .filter(Boolean)
+    .filter((src) => !galleryImages.includes(src));
+  const productImages = product ? [...galleryImages, ...fallbackImages] : [];
 
   const handleAddToCart = () => {
     if (!product) return;

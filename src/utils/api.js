@@ -32,13 +32,6 @@
 // }
 
 import axios from "axios";
-import {
-  allProducts,
-  merchDeals,
-  topCategories,
-  topBrands,
-  dailyEssentials,
-} from "../data/mock";
 
 // Create Axios instance with base URL from environment
 const api = axios.create({
@@ -55,64 +48,135 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// --- MOCKED API CALLS ---
-// Simulate backend responses using mock data (until real backend is connected)
-
-const mockRequest = (data, delay = 500) =>
-  new Promise((resolve) => setTimeout(() => resolve({ data }), delay));
-
-export const getSmartphoneDeals = () => mockRequest(merchDeals);
-export const getTopCategories = () => mockRequest(topCategories);
-export const getTopBrands = () => mockRequest(topBrands);
-export const getDailyEssentials = () => mockRequest(dailyEssentials);
-export const getAllProducts = () => mockRequest(allProducts);
-
-// Get products by brand slug (e.g., "apple" or "realme")
-const slugifyBrand = (name = "") =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-
-export const getProductsByBrand = (slug) => {
-  const merged = [...allProducts, ...merchDeals];
-  const filtered = merged.filter(
-    (p) => slugifyBrand(p.brand) === String(slug || "").toLowerCase()
-  );
-  return mockRequest(filtered);
-};
-
-// Get a single product by ID
-export const getProductById = (id) => {
-  const merged = [...allProducts, ...merchDeals];
-  const product = merged.find((p) => p.id === id);
-  return mockRequest(product);
-};
-
-// Get products by category slug (e.g., "mobile" or "electronics")
-const slugifyCategory = (name = "") =>
-  name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-
-export const getProductsByCategory = (slug) => {
-  const merged = [...allProducts, ...merchDeals];
-  const filtered = merged.filter(
-    (p) => slugifyCategory(p.category) === String(slug || "").toLowerCase()
-  );
-  return mockRequest(filtered);
-};
-
-// Example of a real API call (for later use)
-export const fetchProducts = async () => {
-  try {
-    const response = await api.get("/products");
-    return response.data;
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    throw error;
+const extractPayload = (response, fallbackMessage) => {
+  const payload = response?.data;
+  if (!payload) {
+    throw new Error(fallbackMessage);
   }
+  if (payload.success === false) {
+    throw new Error(payload.message || fallbackMessage);
+  }
+  return payload;
+};
+
+const withApiHandling = async (requestFn, fallbackMessage) => {
+  try {
+    const response = await requestFn();
+    return extractPayload(response, fallbackMessage);
+  } catch (error) {
+    const message =
+      error?.response?.data?.message || error?.message || fallbackMessage;
+    throw new Error(message);
+  }
+};
+
+const ensurePriceFields = (product = {}) => {
+  const resolvedPrice = Number(product.price ?? 0);
+  const resolvedOriginal = Number(
+    product.originalPrice ?? product.price ?? product.costPrice ?? resolvedPrice
+  );
+  const price = resolvedPrice || resolvedOriginal;
+  const originalPrice = resolvedOriginal || price;
+  const discountPercentage =
+    product.discountPercentage ??
+    (originalPrice > price
+      ? Math.round(((originalPrice - price) / originalPrice) * 100)
+      : 0);
+  const saveAmount =
+    product.saveAmount ??
+    (discountPercentage > 0 ? originalPrice - price : 0);
+
+  return { price, originalPrice, discountPercentage, saveAmount };
+};
+
+const mapProductCard = (product = {}) => {
+  const {
+    price,
+    originalPrice,
+    discountPercentage,
+    saveAmount,
+  } = ensurePriceFields(product);
+
+  const gallery = Array.isArray(product.gallery) ? product.gallery : [];
+  const primaryImage =
+    product.thumbnail || product.image || gallery[0] || "";
+
+  return {
+    id: product.slug || product._id,
+    slug: product.slug || "",
+    mongoId: product._id,
+    name: product.name || "Unnamed Product",
+    description: product.shortDescription || "",
+    image: primaryImage,
+    gallery,
+    price,
+    originalPrice,
+    discount: discountPercentage,
+    saveAmount,
+    rating:
+      product.rating ?? product.ratings?.average ?? 0,
+    reviews:
+      product.reviews ?? product.ratings?.totalReviews ?? 0,
+    availabilityStatus: product.availabilityStatus,
+    brand: product.brand || "",
+    category: product.category || "",
+    currency: product.currency || "INR",
+  };
+};
+
+const mapProductDetail = (product = {}) => {
+  const card = mapProductCard(product);
+  return {
+    ...card,
+    description: product.description || card.description,
+    shortDescription: product.shortDescription || card.description,
+    metadata: product.metadata || {},
+    attributes: product.attributes || {},
+    variants: product.variants || [],
+    stock: product.stock ?? 0,
+  };
+};
+
+const decodeSlug = (value = "") =>
+  String(value)
+    .replace(/-/g, " ")
+    .replace(/_/g, " ")
+    .trim();
+
+export const fetchProducts = async (params = {}) => {
+  const payload = await withApiHandling(
+    () => api.get("/products", { params }),
+    "Failed to fetch products"
+  );
+
+  return {
+    data: Array.isArray(payload.data)
+      ? payload.data.map(mapProductCard)
+      : [],
+    meta: payload.meta || {},
+  };
+};
+
+export const getAllProducts = (params = {}) => fetchProducts(params);
+
+export const getSmartphoneDeals = (params = {}) =>
+  fetchProducts({ isFeatured: true, limit: 8, ...params });
+
+export const getProductsByBrand = (slug, params = {}) =>
+  fetchProducts({ brand: decodeSlug(slug), ...params });
+
+export const getProductsByCategory = (slug, params = {}) =>
+  fetchProducts({ category: decodeSlug(slug), ...params });
+
+export const getProductById = async (idOrSlug) => {
+  const payload = await withApiHandling(
+    () => api.get(`/products/${idOrSlug}`),
+    "Failed to fetch product"
+  );
+
+  return {
+    data: mapProductDetail(payload.data || {}),
+  };
 };
 
 export const requestPasswordReset = async ({ email, newPassword }) => {
@@ -191,6 +255,16 @@ export const deleteAddress = async (addressId) => {
 
 export const createOrder = async (payload) => {
   const response = await api.post("/orders/create", payload);
+  return response.data;
+};
+
+export const createPhonePePayment = async (payload) => {
+  const response = await api.post("/payments/create", payload);
+  return response.data;
+};
+
+export const fetchPaymentStatus = async (transactionId) => {
+  const response = await api.get(`/payments/status/${transactionId}`);
   return response.data;
 };
 

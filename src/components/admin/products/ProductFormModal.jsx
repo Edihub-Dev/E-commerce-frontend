@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PropTypes from "prop-types";
 import { AnimatePresence, motion } from "framer-motion";
-import { X } from "lucide-react";
+import { X, UploadCloud, Image as ImageIcon, Loader2 } from "lucide-react";
 
 const DEFAULT_FORM = {
   name: "",
@@ -9,11 +9,17 @@ const DEFAULT_FORM = {
   category: "",
   brand: "",
   price: "",
+  originalPrice: "",
+  discountPercentage: "",
+  saveAmount: "",
+  rating: "",
+  reviews: "",
   stock: "",
   status: "draft",
   availabilityStatus: "in_stock",
   thumbnail: "",
   description: "",
+  gallery: [],
 };
 
 const statusOptions = [
@@ -46,6 +52,8 @@ const ProductFormModal = ({
 }) => {
   const [formState, setFormState] = useState(DEFAULT_FORM);
   const [localError, setLocalError] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [isGalleryUploading, setIsGalleryUploading] = useState(false);
 
   const title = useMemo(
     () => (mode === "edit" ? "Edit Product" : "Add Product"),
@@ -58,7 +66,15 @@ const ProductFormModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      setFormState({ ...DEFAULT_FORM, ...initialData });
+      const normalizedInitial = initialData || {};
+      setFormState({
+        ...DEFAULT_FORM,
+        ...normalizedInitial,
+        thumbnail: normalizedInitial.thumbnail || DEFAULT_FORM.thumbnail,
+        gallery: Array.isArray(normalizedInitial.gallery)
+          ? [...normalizedInitial.gallery]
+          : [...DEFAULT_FORM.gallery],
+      });
       setLocalError("");
     }
   }, [isOpen, initialData]);
@@ -72,6 +88,114 @@ const ProductFormModal = ({
   const handleChange = (field) => (event) => {
     const value = event.target.value;
     setFormState((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handlePricingChange = (field) => (event) => {
+    const { value } = event.target;
+    setFormState((prev) => {
+      const next = { ...prev, [field]: value };
+      const priceValue = field === "price" ? value : next.price;
+      const originalValue = field === "originalPrice" ? value : next.originalPrice;
+
+      const priceNum = parseFloat(priceValue);
+      const originalNum = parseFloat(originalValue);
+
+      if (
+        !Number.isNaN(priceNum) &&
+        !Number.isNaN(originalNum) &&
+        originalNum >= priceNum &&
+        originalNum > 0
+      ) {
+        const save = originalNum - priceNum;
+        next.discountPercentage = Math.round((save / originalNum) * 100).toString();
+        next.saveAmount = save.toFixed(2);
+      } else {
+        next.discountPercentage = "";
+        next.saveAmount = "";
+      }
+
+      return next;
+    });
+  };
+
+  const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+
+  const readFileAsDataURL = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  const handleThumbnailUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setLocalError("Please upload an image file for the thumbnail");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE) {
+      setLocalError("Thumbnail must be under 2MB");
+      event.target.value = "";
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const dataUrl = await readFileAsDataURL(file);
+      setFormState((prev) => ({ ...prev, thumbnail: dataUrl }));
+      setLocalError("");
+    } catch (error) {
+      setLocalError("Failed to load thumbnail image");
+    } finally {
+      setIsUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleGalleryUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    if (files.some((file) => !file.type.startsWith("image/"))) {
+      setLocalError("All gallery files must be images");
+      event.target.value = "";
+      return;
+    }
+
+    const oversized = files.find((file) => file.size > MAX_IMAGE_SIZE);
+    if (oversized) {
+      setLocalError("Each gallery image must be under 2MB");
+      event.target.value = "";
+      return;
+    }
+
+    setIsGalleryUploading(true);
+    try {
+      const images = await Promise.all(files.map(readFileAsDataURL));
+      setFormState((prev) => {
+        const existing = Array.isArray(prev.gallery) ? prev.gallery : [];
+        const additions = images.filter((image) => !existing.includes(image));
+        return { ...prev, gallery: [...existing, ...additions] };
+      });
+      setLocalError("");
+    } catch (error) {
+      setLocalError("Failed to load gallery images");
+    } finally {
+      setIsGalleryUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleRemoveGalleryImage = (index) => {
+    setFormState((prev) => {
+      const nextGallery = (prev.gallery || []).filter((_, idx) => idx !== index);
+      return { ...prev, gallery: nextGallery };
+    });
   };
 
   const handleSubmit = (event) => {
@@ -88,8 +212,22 @@ const ProductFormModal = ({
       return;
     }
 
+    if (!Array.isArray(formState.gallery) || formState.gallery.length === 0) {
+      setLocalError("Add at least one gallery image");
+      return;
+    }
+
     if (!formState.price || Number.isNaN(Number(formState.price))) {
       setLocalError("Valid price is required");
+      return;
+    }
+
+    if (
+      formState.originalPrice &&
+      (Number.isNaN(Number(formState.originalPrice)) ||
+        Number(formState.originalPrice) < Number(formState.price))
+    ) {
+      setLocalError("Original price must be a valid number greater than or equal to price");
       return;
     }
 
@@ -98,10 +236,34 @@ const ProductFormModal = ({
       return;
     }
 
+    if (formState.rating) {
+      const ratingNum = Number(formState.rating);
+      if (Number.isNaN(ratingNum) || ratingNum < 0 || ratingNum > 5) {
+        setLocalError("Rating must be between 0 and 5");
+        return;
+      }
+    }
+
+    if (formState.reviews) {
+      const reviewsNum = Number(formState.reviews);
+      if (Number.isNaN(reviewsNum) || reviewsNum < 0) {
+        setLocalError("Reviews must be 0 or more");
+        return;
+      }
+    }
+
     onSubmit({
       ...formState,
       price: Number(formState.price),
+      originalPrice: formState.originalPrice ? Number(formState.originalPrice) : undefined,
+      discountPercentage: formState.discountPercentage
+        ? Number(formState.discountPercentage)
+        : undefined,
+      saveAmount: formState.saveAmount ? Number(formState.saveAmount) : undefined,
+      rating: formState.rating ? Number(formState.rating) : undefined,
+      reviews: formState.reviews ? Number(formState.reviews) : undefined,
       stock: Number(formState.stock || 0),
+      gallery: Array.isArray(formState.gallery) ? formState.gallery : [],
     });
   };
 
@@ -143,7 +305,7 @@ const ProductFormModal = ({
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <form onSubmit={handleSubmit} className="mt-6 space-y-5">
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
                   Product Name
@@ -192,9 +354,45 @@ const ProductFormModal = ({
                     min="0"
                     step="0.01"
                     value={formState.price}
-                    onChange={handleChange("price")}
+                    onChange={handlePricingChange("price")}
                     className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
                     placeholder="599.00"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                  Original Price (MRP)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formState.originalPrice}
+                    onChange={handlePricingChange("originalPrice")}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    placeholder="799.00"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                  Discount (%)
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formState.discountPercentage}
+                    onChange={handleChange("discountPercentage")}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    placeholder="Auto"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                  You Save (₹)
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formState.saveAmount}
+                    onChange={handleChange("saveAmount")}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    placeholder="Auto"
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
@@ -239,16 +437,108 @@ const ProductFormModal = ({
                 </label>
               </div>
 
-              <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
-                Thumbnail URL
-                <input
-                  type="text"
-                  value={formState.thumbnail}
-                  onChange={handleChange("thumbnail")}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                  placeholder="https://..."
-                />
-              </label>
+              <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase text-slate-500">
+                    Thumbnail
+                  </span>
+                  <p className="text-xs text-slate-500">
+                    Upload a primary image (max 2MB) that will be used as the card preview.
+                  </p>
+                </div>
+                <div
+                  className={`flex flex-col items-center justify-center rounded-2xl border-2 border-dashed px-4 py-8 text-center ${
+                    formState.thumbnail
+                      ? "border-blue-200 bg-white"
+                      : "border-slate-200 bg-white"
+                  }`}
+                >
+                  {formState.thumbnail ? (
+                    <div className="relative">
+                      <img
+                        src={formState.thumbnail}
+                        alt="Thumbnail preview"
+                        className="h-28 w-28 rounded-2xl object-cover shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormState((prev) => ({ ...prev, thumbnail: "" }))
+                        }
+                        className="absolute -right-2 -top-2 inline-flex items-center justify-center rounded-full bg-white px-2 py-1 text-[10px] font-semibold shadow-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm">
+                        {isUploading ? (
+                          <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-blue-500" />
+                        )}
+                      </div>
+                      <p className="mt-3 text-xs text-slate-500">
+                        Drag and drop image here, or click add image
+                      </p>
+                    </>
+                  )}
+                  <label className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700">
+                    <UploadCloud size={14} />
+                    {formState.thumbnail ? "Replace Image" : "Add Image"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleThumbnailUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </section>
+
+              <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase text-slate-500">
+                    Gallery Images
+                  </span>
+                  <p className="text-xs text-slate-500">
+                    Upload multiple images (under 2MB each) for the product swiper.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  {(formState.gallery || []).map((image, index) => (
+                    <div
+                      key={`${image}-${index}`}
+                      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                    >
+                      <img
+                        src={image}
+                        alt={`Gallery ${index + 1}`}
+                        className="h-24 w-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveGalleryImage(index)}
+                        className="absolute inset-x-2 bottom-2 rounded-lg bg-white/90 px-2 py-1 text-[10px] font-semibold text-slate-600 opacity-0 shadow-sm transition group-hover:opacity-100"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <label className="inline-flex items-center gap-2 rounded-xl border border-dashed border-blue-300 px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50">
+                  <UploadCloud size={14} />
+                  {isGalleryUploading ? "Uploading..." : "Add Gallery Images"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleGalleryUpload}
+                    className="hidden"
+                  />
+                </label>
+              </section>
 
               <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
                 Description
@@ -260,6 +550,33 @@ const ProductFormModal = ({
                   placeholder="A short description about this product"
                 />
               </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                  Rating (0 - 5)
+                  <input
+                    type="number"
+                    min="0"
+                    max="5"
+                    step="0.1"
+                    value={formState.rating}
+                    onChange={handleChange("rating")}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    placeholder="4.5"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
+                  Reviews Count
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={formState.reviews}
+                    onChange={handleChange("reviews")}
+                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    placeholder="135"
+                  />
+                </label>
+              </div>
 
               {(localError || error) && (
                 <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-600">

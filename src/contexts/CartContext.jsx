@@ -4,22 +4,27 @@ import { toast } from "react-toastify";
 const CartContext = createContext(null);
 
 export const CartProvider = ({ children }) => {
-  const [cartItems, setCartItems] = useState([]);
+  const [cartItems, setCartItems] = useState(() => {
+    if (typeof window === "undefined") {
+      return [];
+    }
 
-  useEffect(() => {
     try {
-      const storedCart = localStorage.getItem("cartItems");
-      if (storedCart) {
-        setCartItems(JSON.parse(storedCart));
-      }
+      const storedCart = window.localStorage.getItem("cartItems");
+      return storedCart ? JSON.parse(storedCart) : [];
     } catch (error) {
       console.error("Failed to parse cart from localStorage", error);
-      localStorage.removeItem("cartItems");
+      window.localStorage.removeItem("cartItems");
+      return [];
     }
-  }, []);
+  });
 
   useEffect(() => {
-    localStorage.setItem("cartItems", JSON.stringify(cartItems));
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem("cartItems", JSON.stringify(cartItems));
   }, [cartItems]);
 
   const addItem = (product, quantity = 1) => {

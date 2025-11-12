@@ -22,12 +22,6 @@ const statusOptions = [
   { label: "Archived", value: "archived" },
 ];
 
-const discountTypeOptions = [
-  { label: "None", value: "none" },
-  { label: "Percentage", value: "percentage" },
-  { label: "Flat amount", value: "flat" },
-];
-
 const availabilityOptions = [
   { label: "In Stock", value: "in_stock" },
   { label: "Low Stock", value: "low_stock" },
@@ -43,13 +37,16 @@ const defaultFormState = {
   brand: "",
   status: "draft",
   availabilityStatus: "in_stock",
-  basePrice: "",
-  discountType: "none",
-  discountValue: "",
-  gst: "",
+  price: "",
+  originalPrice: "",
+  discountPercentage: "",
+  saveAmount: "",
+  rating: "",
+  reviews: "",
   stock: "",
   lowStockThreshold: "",
   thumbnail: "",
+  gallery: [],
 };
 
 const AdminAddProductPage = () => {
@@ -60,6 +57,7 @@ const AdminAddProductPage = () => {
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isGalleryUploading, setIsGalleryUploading] = useState(false);
   const { user, logout } = useAuth();
 
   useEffect(() => {
@@ -93,17 +91,55 @@ const AdminAddProductPage = () => {
     setFormState((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleImageUpload = async (event) => {
+  const handlePricingChange = (field) => (event) => {
+    const { value } = event.target;
+    setFormState((prev) => {
+      const next = { ...prev, [field]: value };
+      const priceValue = field === "price" ? value : next.price;
+      const originalValue = field === "originalPrice" ? value : next.originalPrice;
+
+      const priceNum = parseFloat(priceValue);
+      const originalNum = parseFloat(originalValue);
+
+      if (
+        !Number.isNaN(priceNum) &&
+        !Number.isNaN(originalNum) &&
+        originalNum >= priceNum &&
+        originalNum > 0
+      ) {
+        const save = originalNum - priceNum;
+        next.discountPercentage = Math.round((save / originalNum) * 100).toString();
+        next.saveAmount = save.toFixed(2);
+      } else {
+        next.discountPercentage = "";
+        next.saveAmount = "";
+      }
+
+      return next;
+    });
+  };
+
+  const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+
+  const readFileAsDataURL = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error("Failed to read file"));
+      reader.readAsDataURL(file);
+    });
+
+  const handleThumbnailUpload = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith("image/")) {
       toast.error("Please upload an image file");
+      event.target.value = "";
       return;
     }
 
-    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
-    if (file.size > MAX_FILE_SIZE) {
+    if (file.size > MAX_IMAGE_SIZE) {
       toast.error("Image must be smaller than 2MB");
       event.target.value = "";
       return;
@@ -111,17 +147,57 @@ const AdminAddProductPage = () => {
 
     setIsUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onload = () => {
-        setFormState((prev) => ({ ...prev, thumbnail: reader.result }));
-        toast.success("Image loaded");
-      };
-      reader.readAsDataURL(file);
+      const dataUrl = await readFileAsDataURL(file);
+      setFormState((prev) => ({ ...prev, thumbnail: dataUrl }));
+      toast.success("Thumbnail added");
     } catch (error) {
       toast.error("Failed to load image");
     } finally {
       setIsUploading(false);
+      event.target.value = "";
     }
+  };
+
+  const handleGalleryUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
+
+    const hasNonImage = files.some((file) => !file.type.startsWith("image/"));
+    if (hasNonImage) {
+      toast.error("All files must be images");
+      event.target.value = "";
+      return;
+    }
+
+    const oversize = files.find((file) => file.size > MAX_IMAGE_SIZE);
+    if (oversize) {
+      toast.error("Each image must be under 2MB");
+      event.target.value = "";
+      return;
+    }
+
+    setIsGalleryUploading(true);
+    try {
+      const images = await Promise.all(files.map(readFileAsDataURL));
+      setFormState((prev) => {
+        const existing = Array.isArray(prev.gallery) ? prev.gallery : [];
+        const additions = images.filter((image) => !existing.includes(image));
+        return { ...prev, gallery: [...existing, ...additions] };
+      });
+      toast.success(`Added ${images.length} image${images.length > 1 ? "s" : ""}`);
+    } catch (error) {
+      toast.error("Failed to load gallery images");
+    } finally {
+      setIsGalleryUploading(false);
+      event.target.value = "";
+    }
+  };
+
+  const handleRemoveGalleryImage = (index) => {
+    setFormState((prev) => {
+      const nextGallery = (prev.gallery || []).filter((_, idx) => idx !== index);
+      return { ...prev, gallery: nextGallery };
+    });
   };
 
   const validateForm = () => {
@@ -147,23 +223,44 @@ const AdminAddProductPage = () => {
       errors.brand = "Brand is required";
     }
 
-    if (!formState.basePrice || Number(formState.basePrice) <= 0) {
-      errors.basePrice = "Enter a valid base price";
+    if (!formState.price || Number(formState.price) <= 0) {
+      errors.price = "Enter a valid price";
+    }
+
+    if (formState.originalPrice) {
+      const priceNum = Number(formState.price || 0);
+      const originalNum = Number(formState.originalPrice);
+      if (Number.isNaN(originalNum) || originalNum <= 0) {
+        errors.originalPrice = "Original price must be a positive number";
+      } else if (originalNum < priceNum) {
+        errors.originalPrice = "Original price should be greater than or equal to price";
+      }
     }
 
     if (!formState.stock || Number(formState.stock) < 0) {
       errors.stock = "Enter available stock";
     }
 
-    if (
-      formState.discountType !== "none" &&
-      (!formState.discountValue || Number(formState.discountValue) < 0)
-    ) {
-      errors.discountValue = "Enter a valid discount value";
+    if (formState.rating) {
+      const ratingNum = Number(formState.rating);
+      if (Number.isNaN(ratingNum) || ratingNum < 0 || ratingNum > 5) {
+        errors.rating = "Rating must be between 0 and 5";
+      }
+    }
+
+    if (formState.reviews) {
+      const reviewsNum = Number(formState.reviews);
+      if (Number.isNaN(reviewsNum) || reviewsNum < 0) {
+        errors.reviews = "Reviews must be 0 or more";
+      }
     }
 
     if (!formState.thumbnail.trim()) {
       errors.thumbnail = "Upload at least one image";
+    }
+
+    if (!Array.isArray(formState.gallery) || formState.gallery.length === 0) {
+      errors.gallery = "Add at least one gallery image";
     }
 
     setFormErrors(errors);
@@ -187,29 +284,23 @@ const AdminAddProductPage = () => {
       brand: formState.brand,
       status: formState.status,
       availabilityStatus: formState.availabilityStatus,
-      price: Number(formState.basePrice),
+      price: Number(formState.price),
+      originalPrice: formState.originalPrice
+        ? Number(formState.originalPrice)
+        : undefined,
+      discountPercentage: formState.discountPercentage
+        ? Number(formState.discountPercentage)
+        : undefined,
+      saveAmount: formState.saveAmount ? Number(formState.saveAmount) : undefined,
+      rating: formState.rating ? Number(formState.rating) : undefined,
+      reviews: formState.reviews ? Number(formState.reviews) : undefined,
       sku: formState.sku.trim(),
       stock: Number(formState.stock),
       lowStockThreshold: formState.lowStockThreshold
         ? Number(formState.lowStockThreshold)
         : undefined,
-      discountPercentage:
-        formState.discountType === "percentage"
-          ? Number(formState.discountValue)
-          : undefined,
-      costPrice:
-        formState.discountType === "flat"
-          ? Math.max(
-              Number(formState.basePrice) -
-                Number(formState.discountValue || 0),
-              0
-            )
-          : undefined,
-      metadata: {
-        gst: formState.gst,
-        discountType: formState.discountType,
-      },
       thumbnail: formState.thumbnail,
+      gallery: formState.gallery,
     };
 
     try {
@@ -369,6 +460,55 @@ const AdminAddProductPage = () => {
                         </p>
                       )}
                     </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div>
+                        <label className="text-xs font-medium text-slate-500">
+                          Rating (0 - 5)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          value={formState.rating}
+                          onChange={handleChange("rating")}
+                          className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none ${
+                            formErrors.rating
+                              ? "border-rose-300"
+                              : "border-slate-200"
+                          }`}
+                          placeholder="4.5"
+                        />
+                        {formErrors.rating && (
+                          <p className="mt-1 text-xs text-rose-500">
+                            {formErrors.rating}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-slate-500">
+                          Reviews Count
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={formState.reviews}
+                          onChange={handleChange("reviews")}
+                          className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none ${
+                            formErrors.reviews
+                              ? "border-rose-300"
+                              : "border-slate-200"
+                          }`}
+                          placeholder="135"
+                        />
+                        {formErrors.reviews && (
+                          <p className="mt-1 text-xs text-rose-500">
+                            {formErrors.reviews}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </section>
 
@@ -418,7 +558,7 @@ const AdminAddProductPage = () => {
                           <input
                             type="file"
                             accept="image/*"
-                            onChange={handleImageUpload}
+                            onChange={handleThumbnailUpload}
                             className="hidden"
                           />
                         </label>
@@ -430,6 +570,51 @@ const AdminAddProductPage = () => {
                       </p>
                     )}
                   </div>
+                  <div className="mt-6 w-full space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-900">
+                        Gallery Images
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Used for product swiper (max 2MB each)
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {(formState.gallery || []).map((image, index) => (
+                        <div
+                          key={`${image}-${index}`}
+                          className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                        >
+                          <img
+                            src={image}
+                            alt={`Gallery ${index + 1}`}
+                            className="h-32 w-full object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(index)}
+                            className="absolute inset-x-2 bottom-2 rounded-lg bg-white/90 px-2 py-1 text-xs font-semibold text-slate-600 opacity-0 shadow-sm transition group-hover:opacity-100"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <label className="inline-flex items-center gap-2 rounded-xl border border-dashed border-blue-300 px-4 py-2 text-sm font-semibold text-blue-600 hover:bg-blue-50">
+                      <UploadCloud size={16} />
+                      {isGalleryUploading ? "Uploading..." : "Add Gallery Images"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleGalleryUpload}
+                        className="hidden"
+                      />
+                    </label>
+                    {formErrors.gallery && (
+                      <p className="text-xs text-rose-500">{formErrors.gallery}</p>
+                    )}
+                  </div>
                 </section>
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -439,79 +624,76 @@ const AdminAddProductPage = () => {
                   <div className="mt-4 grid gap-4 md:grid-cols-2">
                     <div>
                       <label className="text-xs font-medium text-slate-500">
-                        Base Price
+                        Price
                       </label>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={formState.basePrice}
-                        onChange={handleChange("basePrice")}
+                        value={formState.price}
+                        onChange={handlePricingChange("price")}
                         className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none ${
-                          formErrors.basePrice
+                          formErrors.price
                             ? "border-rose-300"
                             : "border-slate-200"
                         }`}
-                        placeholder="Type base price here..."
+                        placeholder="599.00"
                       />
-                      {formErrors.basePrice && (
+                      {formErrors.price && (
                         <p className="mt-1 text-xs text-rose-500">
-                          {formErrors.basePrice}
+                          {formErrors.price}
                         </p>
                       )}
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-500">
-                        Discount Type
-                      </label>
-                      <select
-                        value={formState.discountType}
-                        onChange={handleChange("discountType")}
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 focus:border-blue-400 focus:outline-none"
-                      >
-                        {discountTypeOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-500">
-                        Discount Value
+                        Original Price (MRP)
                       </label>
                       <input
                         type="number"
                         min="0"
                         step="0.01"
-                        value={formState.discountValue}
-                        onChange={handleChange("discountValue")}
+                        value={formState.originalPrice}
+                        onChange={handlePricingChange("originalPrice")}
                         className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none ${
-                          formErrors.discountValue
+                          formErrors.originalPrice
                             ? "border-rose-300"
                             : "border-slate-200"
                         }`}
-                        placeholder="Type discount value..."
-                        disabled={formState.discountType === "none"}
+                        placeholder="799.00"
                       />
-                      {formErrors.discountValue && (
+                      {formErrors.originalPrice && (
                         <p className="mt-1 text-xs text-rose-500">
-                          {formErrors.discountValue}
+                          {formErrors.originalPrice}
                         </p>
                       )}
                     </div>
                     <div>
                       <label className="text-xs font-medium text-slate-500">
-                        GST Amount (%)
+                        Discount (%)
                       </label>
                       <input
                         type="number"
                         min="0"
-                        step="0.01"
-                        value={formState.gst}
-                        onChange={handleChange("gst")}
+                        step="1"
+                        value={formState.discountPercentage}
+                        onChange={handleChange("discountPercentage")}
                         className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                        placeholder="Type GST amount..."
+                        placeholder="Auto"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-slate-500">
+                        You Save (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formState.saveAmount}
+                        onChange={handleChange("saveAmount")}
+                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                        placeholder="Auto"
                       />
                     </div>
                   </div>

@@ -3,28 +3,61 @@ import { useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import ProductCard from "../components/ProductCard";
 import { getProductsByBrand } from "../utils/api";
-import { pageVariants, staggerContainer, staggerItem } from "../utils/animations";
+import {
+  pageVariants,
+  staggerContainer,
+  staggerItem,
+} from "../utils/animations";
 
 const BrandPage = () => {
   const { slug } = useParams();
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const brandName = slug
     .replace(/-/g, " ")
     .replace(/\b\w/g, (l) => l.toUpperCase());
 
   useEffect(() => {
-    getProductsByBrand(slug).then((res) => setProducts(res.data));
+    let active = true;
+
+    const fetchBrandProducts = async () => {
+      setLoading(true);
+      try {
+        const { data } = await getProductsByBrand(slug, { limit: 60 });
+        if (active) {
+          setProducts(data);
+          setError("");
+        }
+      } catch (err) {
+        console.error("Failed to load brand products", err);
+        if (active) {
+          setError(err.message || "Unable to load products for this brand.");
+          setProducts([]);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchBrandProducts();
+
+    return () => {
+      active = false;
+    };
   }, [slug]);
 
   return (
-    <motion.div 
+    <motion.div
       className="container mx-auto px-4 py-8"
       variants={pageVariants}
       initial="initial"
       animate="animate"
       exit="exit"
     >
-      <motion.h1 
+      <motion.h1
         className="text-3xl font-bold mb-8"
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -32,7 +65,20 @@ const BrandPage = () => {
       >
         Brand: {brandName}
       </motion.h1>
-      <motion.div 
+      {loading && (
+        <div className="py-6 text-center text-sm text-slate-500">
+          Loading brand products...
+        </div>
+      )}
+      {error && !loading && (
+        <div className="py-6 text-center text-sm text-red-500">{error}</div>
+      )}
+      {!loading && !error && products.length === 0 && (
+        <div className="py-6 text-center text-sm text-slate-500">
+          No products found for this brand yet.
+        </div>
+      )}
+      <motion.div
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
         variants={staggerContainer}
         initial="initial"

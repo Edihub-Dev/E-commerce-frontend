@@ -7,9 +7,38 @@ import { staggerContainer, staggerItem } from "../../utils/animations";
 
 const DealsSection = () => {
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    getMerchDeals().then((res) => setProducts(res.data));
+    let isMounted = true;
+
+    const fetchDeals = async () => {
+      setLoading(true);
+      try {
+        const { data } = await getMerchDeals({ limit: 8 });
+        if (isMounted) {
+          setProducts(data);
+          setError("");
+        }
+      } catch (err) {
+        console.error("Failed to load featured products", err);
+        if (isMounted) {
+          setError(err.message || "Unable to load featured products.");
+          setProducts([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchDeals();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return (
@@ -34,8 +63,26 @@ const DealsSection = () => {
           className="w-full overflow-hidden flex flex-col"
           variants={staggerContainer}
         >
+          {loading && (
+            <div className="py-6 text-center text-sm text-slate-500">
+              Loading featured products...
+            </div>
+          )}
+
+          {error && !loading && (
+            <div className="py-6 text-center text-sm text-red-500">
+              {error}
+            </div>
+          )}
+
+          {!loading && !error && products.length === 0 && (
+            <div className="py-6 text-center text-sm text-slate-500">
+              No featured products yet. Check back soon!
+            </div>
+          )}
+
           <div className="flex flex-col sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4 sm:gap-4">
-            {products.map((product, index) => (
+            {products.map((product) => (
               <motion.div
                 key={product.id}
                 variants={staggerItem}

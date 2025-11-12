@@ -288,15 +288,25 @@ const AdminProductsPage = () => {
 
     return {
       name: activeProduct.name || "",
-      id: activeProduct.id || "",
+      sku: activeProduct.sku || activeProduct.id || "",
       category: activeProduct.category || "",
       brand: activeProduct.brand || "",
       price: activeProduct.price ?? "",
+      originalPrice: activeProduct.originalPrice ?? "",
+      discountPercentage: activeProduct.discountPercentage ?? "",
+      saveAmount: activeProduct.saveAmount ?? "",
+      rating: activeProduct.rating ?? activeProduct.ratings?.average ?? "",
+      reviews: activeProduct.reviews ?? activeProduct.ratings?.totalReviews ?? "",
       stock: activeProduct.stock ?? "",
       status: activeProduct.status || "draft",
       availabilityStatus: activeProduct.availabilityStatus || "in_stock",
-      thumbnail: activeProduct.thumbnail || activeProduct.imageUrl || "",
+      thumbnail: activeProduct.thumbnail || activeProduct.image || activeProduct.imageUrl || "",
       description: activeProduct.description || "",
+      gallery: Array.isArray(activeProduct.gallery)
+        ? activeProduct.gallery
+        : Array.isArray(activeProduct.images)
+        ? activeProduct.images
+        : [],
     };
   }, [activeProduct]);
 
@@ -1066,24 +1076,7 @@ const AdminProductsPage = () => {
       <ProductFormModal
         isOpen={modalOpen}
         mode="edit"
-        initialData={
-          activeProduct
-            ? {
-                name: activeProduct.name || "",
-                sku: activeProduct.sku || "",
-                category: activeProduct.category || "",
-                brand: activeProduct.brand || "",
-                price: activeProduct.price ?? "",
-                stock: activeProduct.stock ?? "",
-                status: activeProduct.status || "draft",
-                availabilityStatus:
-                  activeProduct.availabilityStatus || "in_stock",
-                thumbnail:
-                  activeProduct.thumbnail || activeProduct.imageUrl || "",
-                description: activeProduct.description || "",
-              }
-            : null
-        }
+        initialData={modalInitialData}
         onClose={closeModal}
         onSubmit={handleSubmitProduct}
         isSubmitting={isSubmittingProduct}
