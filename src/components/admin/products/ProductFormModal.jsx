@@ -87,7 +87,18 @@ const ProductFormModal = ({
 
   const handleChange = (field) => (event) => {
     const value = event.target.value;
-    setFormState((prev) => ({ ...prev, [field]: value }));
+    setFormState((prev) => {
+      const next = { ...prev, [field]: value };
+
+      if (
+        field === "availabilityStatus" &&
+        ["out_of_stock", "preorder"].includes(value)
+      ) {
+        next.stock = "0";
+      }
+
+      return next;
+    });
   };
 
   const handlePricingChange = (field) => (event) => {
@@ -262,10 +273,18 @@ const ProductFormModal = ({
       saveAmount: formState.saveAmount ? Number(formState.saveAmount) : undefined,
       rating: formState.rating ? Number(formState.rating) : undefined,
       reviews: formState.reviews ? Number(formState.reviews) : undefined,
-      stock: Number(formState.stock || 0),
+      stock: Number(
+        ["out_of_stock", "preorder"].includes(formState.availabilityStatus)
+          ? 0
+          : formState.stock || 0
+      ),
       gallery: Array.isArray(formState.gallery) ? formState.gallery : [],
     });
   };
+
+  const isStockLocked = ["out_of_stock", "preorder"].includes(
+    formState.availabilityStatus
+  );
 
   return (
     <AnimatePresence>
@@ -403,9 +422,23 @@ const ProductFormModal = ({
                     step="1"
                     value={formState.stock}
                     onChange={handleChange("stock")}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                    disabled={isStockLocked}
+                    className={`rounded-xl border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none ${
+                      isStockLocked
+                        ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400"
+                        : "border-slate-200"
+                    }`}
                     placeholder="40"
                   />
+                  {isStockLocked && (
+                    <span className="text-[11px] text-slate-500">
+                      Stock is controlled automatically when status is {" "}
+                      {formState.availabilityStatus === "preorder"
+                        ? "Preorder"
+                        : "Out of Stock"}
+                      .
+                    </span>
+                  )}
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-medium text-slate-500">
                   Status

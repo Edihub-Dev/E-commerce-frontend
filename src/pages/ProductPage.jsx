@@ -39,6 +39,11 @@ const ProductPage = () => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
 
+  const LOCKED_AVAILABILITY_STATUSES = ["out_of_stock", "preorder"];
+  const availabilityStatus = product?.availabilityStatus || "in_stock";
+  const isNotReadyToShip = LOCKED_AVAILABILITY_STATUSES.includes(availabilityStatus);
+  const isPurchaseDisabled = !product || isNotReadyToShip;
+
   // Product images - show only database-provided sources (gallery, thumbnail, fallback image)
   const galleryImages = Array.isArray(product?.gallery)
     ? product.gallery.filter(Boolean)
@@ -47,14 +52,44 @@ const ProductPage = () => {
     .filter(Boolean)
     .filter((src) => !galleryImages.includes(src));
   const productImages = product ? [...galleryImages, ...fallbackImages] : [];
+  const primaryImage = product?.thumbnail || product?.image || productImages[0];
+
+  const availabilityMessage = (() => {
+    switch (availabilityStatus) {
+      case "preorder":
+        return "Preorder • Not ready to ship";
+      case "out_of_stock":
+        return "Out of stock • Not ready to ship";
+      case "low_stock":
+        return "Low stock • Ready to ship";
+      default:
+        return "In stock • Ready to ship";
+    }
+  })();
+
+  const availabilityIconClass = (() => {
+    if (availabilityStatus === "preorder") return "text-blue-500";
+    if (availabilityStatus === "out_of_stock") return "text-rose-500";
+    if (availabilityStatus === "low_stock") return "text-amber-500";
+    return "text-green-500";
+  })();
 
   const handleAddToCart = () => {
-    if (!product) return;
-    addItem({ ...product, quantity, size: selectedSize });
+    if (isPurchaseDisabled) {
+      return;
+    }
+    addItem({
+      ...product,
+      quantity,
+      size: selectedSize,
+      image: primaryImage,
+    });
   };
 
   const goToCheckout = () => {
-    if (!product) return;
+    if (isPurchaseDisabled) {
+      return;
+    }
 
     const rawProductId = product._id || product.productId || product.id;
     const mongoIdRegex = /^[a-f\d]{24}$/i;
@@ -62,7 +97,7 @@ const ProductPage = () => {
     const selectedItem = {
       id: product.id,
       name: product.name,
-      image: product.image,
+      image: primaryImage,
       price: product.price,
       quantity,
       size: selectedSize,
@@ -124,7 +159,8 @@ const ProductPage = () => {
           saveAmount: 19800,
           rating: 4.5,
           reviews: 24,
-          inStock: true,
+          availabilityStatus: "in_stock",
+          stock: 120,
           features: [
             "Material: 100% Polyester",
             "Color: White with Red Printed MST Logo",
@@ -291,8 +327,17 @@ const ProductPage = () => {
                   <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-4">
                     <div className="flex items-center border rounded-lg overflow-hidden">
                       <button
-                        onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                        className="px-4 py-2 text-xl font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                        type="button"
+                        onClick={() =>
+                          !isPurchaseDisabled &&
+                          setQuantity((q) => Math.max(1, q - 1))
+                        }
+                        disabled={isPurchaseDisabled}
+                        className={`px-4 py-2 text-xl font-medium transition-colors ${
+                          isPurchaseDisabled
+                            ? "cursor-not-allowed text-gray-300"
+                            : "text-gray-600 hover:bg-gray-50"
+                        }`}
                         aria-label="Decrease quantity"
                       >
                         -
@@ -301,8 +346,16 @@ const ProductPage = () => {
                         {quantity}
                       </span>
                       <button
-                        onClick={() => setQuantity((q) => q + 1)}
-                        className="px-4 py-2 text-xl font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                        type="button"
+                        onClick={() =>
+                          !isPurchaseDisabled && setQuantity((q) => q + 1)
+                        }
+                        disabled={isPurchaseDisabled}
+                        className={`px-4 py-2 text-xl font-medium transition-colors ${
+                          isPurchaseDisabled
+                            ? "cursor-not-allowed text-gray-300"
+                            : "text-gray-600 hover:bg-gray-50"
+                        }`}
                         aria-label="Increase quantity"
                       >
                         +
@@ -333,27 +386,54 @@ const ProductPage = () => {
                     </div>
 
                     <motion.button
-                      className="flex-1 bg-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-primary/90 transition-colors text-center whitespace-nowrap"
-                      whileHover={buttonHover.whileHover}
-                      whileTap={buttonHover.whileTap}
+                      type="button"
+                      className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors text-center whitespace-nowrap ${
+                        isPurchaseDisabled
+                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                          : "bg-primary text-white hover:bg-primary/90"
+                      }`}
+                      whileHover={
+                        isPurchaseDisabled ? undefined : buttonHover.whileHover
+                      }
+                      whileTap={
+                        isPurchaseDisabled ? undefined : buttonHover.whileTap
+                      }
+                      disabled={isPurchaseDisabled}
                       onClick={handleAddToCart}
                     >
-                      Add to Cart
+                      {isNotReadyToShip ? "Unavailable" : "Add to Cart"}
                     </motion.button>
                     <motion.button
-                      className="flex-1 bg-blue-500 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors text-center whitespace-nowrap"
-                      whileHover={buttonHover.whileHover}
-                      whileTap={buttonHover.whileTap}
+                      type="button"
+                      className={`flex-1 px-6 py-3 rounded-lg font-medium transition-colors text-center whitespace-nowrap ${
+                        isPurchaseDisabled
+                          ? "bg-slate-200 text-slate-500 cursor-not-allowed"
+                          : "bg-blue-500 text-white hover:bg-blue-600"
+                      }`}
+                      whileHover={
+                        isPurchaseDisabled ? undefined : buttonHover.whileHover
+                      }
+                      whileTap={
+                        isPurchaseDisabled ? undefined : buttonHover.whileTap
+                      }
+                      disabled={isPurchaseDisabled}
                       onClick={goToCheckout}
                     >
-                      Buy Now
+                      {isNotReadyToShip ? "Notify Me" : "Buy Now"}
                     </motion.button>
                   </div>
                 </div>
 
+                {isNotReadyToShip && (
+                  <div className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-sm text-rose-600">
+                    This item is currently unavailable for purchase. Please check
+                    back soon.
+                  </div>
+                )}
+
                 <div className="mt-4 text-sm text-gray-500 flex items-center">
                   <svg
-                    className="h-5 w-5 mr-2 text-green-500"
+                    className={`h-5 w-5 mr-2 ${availabilityIconClass}`}
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -362,11 +442,14 @@ const ProductPage = () => {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M5 13l4 4L19 7"
+                      d={
+                        availabilityStatus === "out_of_stock"
+                          ? "M6 18L18 6M6 6l12 12"
+                          : "M5 13l4 4L19 7"
+                      }
                     />
                   </svg>
-                  {product.inStock ? "In Stock" : "Out of Stock"} - Ready to
-                  ship
+                  {availabilityMessage}
                 </div>
               </div>
             </motion.div>

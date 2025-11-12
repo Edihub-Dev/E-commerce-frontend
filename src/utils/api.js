@@ -83,23 +83,17 @@ const ensurePriceFields = (product = {}) => {
       ? Math.round(((originalPrice - price) / originalPrice) * 100)
       : 0);
   const saveAmount =
-    product.saveAmount ??
-    (discountPercentage > 0 ? originalPrice - price : 0);
+    product.saveAmount ?? (discountPercentage > 0 ? originalPrice - price : 0);
 
   return { price, originalPrice, discountPercentage, saveAmount };
 };
 
 const mapProductCard = (product = {}) => {
-  const {
-    price,
-    originalPrice,
-    discountPercentage,
-    saveAmount,
-  } = ensurePriceFields(product);
+  const { price, originalPrice, discountPercentage, saveAmount } =
+    ensurePriceFields(product);
 
   const gallery = Array.isArray(product.gallery) ? product.gallery : [];
-  const primaryImage =
-    product.thumbnail || product.image || gallery[0] || "";
+  const primaryImage = product.thumbnail || product.image || gallery[0] || "";
 
   return {
     id: product.slug || product._id,
@@ -113,10 +107,8 @@ const mapProductCard = (product = {}) => {
     originalPrice,
     discount: discountPercentage,
     saveAmount,
-    rating:
-      product.rating ?? product.ratings?.average ?? 0,
-    reviews:
-      product.reviews ?? product.ratings?.totalReviews ?? 0,
+    rating: product.rating ?? product.ratings?.average ?? 0,
+    reviews: product.reviews ?? product.ratings?.totalReviews ?? 0,
     availabilityStatus: product.availabilityStatus,
     brand: product.brand || "",
     category: product.category || "",
@@ -138,10 +130,7 @@ const mapProductDetail = (product = {}) => {
 };
 
 const decodeSlug = (value = "") =>
-  String(value)
-    .replace(/-/g, " ")
-    .replace(/_/g, " ")
-    .trim();
+  String(value).replace(/-/g, " ").replace(/_/g, " ").trim();
 
 export const fetchProducts = async (params = {}) => {
   const payload = await withApiHandling(
@@ -150,9 +139,7 @@ export const fetchProducts = async (params = {}) => {
   );
 
   return {
-    data: Array.isArray(payload.data)
-      ? payload.data.map(mapProductCard)
-      : [],
+    data: Array.isArray(payload.data) ? payload.data.map(mapProductCard) : [],
     meta: payload.meta || {},
   };
 };

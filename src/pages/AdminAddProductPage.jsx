@@ -86,9 +86,21 @@ const AdminAddProductPage = () => {
     return Array.from(uniqueBrands);
   }, [items]);
 
+  const LOCKED_AVAILABILITY_STATUSES = ["out_of_stock", "preorder"];
+  const isStockLockedForStatus = (status) =>
+    LOCKED_AVAILABILITY_STATUSES.includes(status);
+
   const handleChange = (field) => (event) => {
     const value = event.target.value;
-    setFormState((prev) => ({ ...prev, [field]: value }));
+    setFormState((prev) => {
+      const next = { ...prev, [field]: value };
+
+      if (field === "availabilityStatus" && isStockLockedForStatus(value)) {
+        next.stock = "0";
+      }
+
+      return next;
+    });
   };
 
   const handlePricingChange = (field) => (event) => {
@@ -237,7 +249,15 @@ const AdminAddProductPage = () => {
       }
     }
 
-    if (!formState.stock || Number(formState.stock) < 0) {
+    const stockLocked = isStockLockedForStatus(formState.availabilityStatus);
+    const stockValue = Number(formState.stock);
+    const hasStockValue = formState.stock !== "" && !Number.isNaN(stockValue);
+
+    if (!hasStockValue || stockValue < 0) {
+      errors.stock = stockLocked
+        ? "Stock is managed automatically"
+        : "Enter available stock";
+    } else if (!stockLocked && stockValue === 0) {
       errors.stock = "Enter available stock";
     }
 
@@ -295,7 +315,9 @@ const AdminAddProductPage = () => {
       rating: formState.rating ? Number(formState.rating) : undefined,
       reviews: formState.reviews ? Number(formState.reviews) : undefined,
       sku: formState.sku.trim(),
-      stock: Number(formState.stock),
+      stock: isStockLockedForStatus(formState.availabilityStatus)
+        ? 0
+        : Number(formState.stock),
       lowStockThreshold: formState.lowStockThreshold
         ? Number(formState.lowStockThreshold)
         : undefined,
@@ -315,6 +337,8 @@ const AdminAddProductPage = () => {
       setIsSubmitting(false);
     }
   };
+
+  const isStockLocked = isStockLockedForStatus(formState.availabilityStatus);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -701,46 +725,21 @@ const AdminAddProductPage = () => {
 
                 <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
                   <h2 className="text-base font-semibold text-slate-900">
-                    Inventory
+                    Stock Settings
                   </h2>
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <div>
-                      <label className="text-xs font-medium text-slate-500">
-                        Available Stock
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={formState.stock}
-                        onChange={handleChange("stock")}
-                        className={`mt-1 w-full rounded-xl border px-3 py-2 text-sm focus:border-blue-400 focus:outline-none ${
-                          formErrors.stock
-                            ? "border-rose-300"
-                            : "border-slate-200"
-                        }`}
-                        placeholder="e.g. 250"
-                      />
-                      {formErrors.stock && (
-                        <p className="mt-1 text-xs text-rose-500">
-                          {formErrors.stock}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <label className="text-xs font-medium text-slate-500">
-                        Low Stock Threshold
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        value={formState.lowStockThreshold}
-                        onChange={handleChange("lowStockThreshold")}
-                        className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
-                        placeholder="Optional (default 10)"
-                      />
-                    </div>
+                  <div className="mt-4 space-y-3">
+                    <label className="text-xs font-medium text-slate-500">
+                      Low Stock Threshold
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={formState.lowStockThreshold}
+                      onChange={handleChange("lowStockThreshold")}
+                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none"
+                      placeholder="Optional (default 10)"
+                    />
                   </div>
                 </section>
               </div>

@@ -70,9 +70,7 @@ const DealsSection = () => {
           )}
 
           {error && !loading && (
-            <div className="py-6 text-center text-sm text-red-500">
-              {error}
-            </div>
+            <div className="py-6 text-center text-sm text-red-500">{error}</div>
           )}
 
           {!loading && !error && products.length === 0 && (
