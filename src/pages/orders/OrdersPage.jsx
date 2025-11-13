@@ -73,19 +73,21 @@ const OrdersPage = () => {
       animate={{ opacity: 1, y: 0 }}
       className="border border-slate-200 rounded-3xl p-6 space-y-6 bg-white"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-wrap items-start gap-3 min-w-0">
+          <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
             <Package className="h-6 w-6" />
           </div>
-          <div>
-            <h2 className="text-lg font-semibold text-secondary">Order #{order._id}</h2>
-            <p className="text-sm text-medium-text">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-semibold text-secondary break-words">
+              Order #{order._id}
+            </h2>
+            <p className="text-xs sm:text-sm text-medium-text break-words">
               Placed on {new Date(order.createdAt).toLocaleString()}
             </p>
           </div>
         </div>
-        <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary">
+        <span className="text-xs font-medium px-3 py-1 rounded-full bg-primary/10 text-primary flex-shrink-0 text-center">
           {order.status?.replace(/_/g, " ")}
         </span>
       </div>

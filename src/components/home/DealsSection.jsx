@@ -16,9 +16,9 @@ const DealsSection = () => {
     const fetchDeals = async () => {
       setLoading(true);
       try {
-        const { data } = await getMerchDeals({ limit: 8 });
+        const { data } = await getMerchDeals({ limit: 6 });
         if (isMounted) {
-          setProducts(data);
+          setProducts(Array.isArray(data) ? data.slice(0, 6) : []);
           setError("");
         }
       } catch (err) {

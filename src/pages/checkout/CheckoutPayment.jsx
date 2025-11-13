@@ -107,8 +107,14 @@ const CheckoutPayment = () => {
     const taxAmount = normaliseNumber(totals.taxAmount, 0);
     const discount = normaliseNumber(totals.discount, 0);
     const subtotal = totals.subtotal > 0 ? totals.subtotal : fallbackSubtotal;
-    const totalCandidate = totals.total > 0 ? totals.total : subtotal + shippingFee + taxAmount - discount;
-    const total = Math.max(Number.isFinite(totalCandidate) ? totalCandidate : 0, 0);
+    const totalCandidate =
+      totals.total > 0
+        ? totals.total
+        : subtotal + shippingFee + taxAmount - discount;
+    const total = Math.max(
+      Number.isFinite(totalCandidate) ? totalCandidate : 0,
+      0
+    );
     const currency = totals.currency || "INR";
 
     return {
@@ -229,7 +235,9 @@ const CheckoutPayment = () => {
             throw new Error("No payment status returned by server");
           }
 
-          const normalizedStatus = String(statusData.paymentStatus || "").toUpperCase();
+          const normalizedStatus = String(
+            statusData.paymentStatus || ""
+          ).toUpperCase();
 
           if (normalizedStatus === "SUCCESS") {
             handlePaymentSuccess(transactionId, statusData);
@@ -261,9 +269,12 @@ const CheckoutPayment = () => {
             setPollingError(
               "Payment is still pending. Please confirm the status in the PhonePe app."
             );
-            toast("Payment pending. You can retry once in PhonePe is complete.", {
-              icon: "⏳",
-            });
+            toast(
+              "Payment pending. You can retry once in PhonePe is complete.",
+              {
+                icon: "⏳",
+              }
+            );
             return;
           }
 
@@ -277,7 +288,9 @@ const CheckoutPayment = () => {
               error.message ||
                 "Unable to confirm payment right now. Please check the PhonePe app."
             );
-            toast.error("Could not verify payment. Please check and try again.");
+            toast.error(
+              "Could not verify payment. Please check and try again."
+            );
             return;
           }
 
@@ -351,7 +364,15 @@ const CheckoutPayment = () => {
 
     toast.success("Order placed successfully");
     dispatch(resetCheckout());
-  }, [dispatch, navigate, orderItems, pricingPayload, resolvedTotals.subtotal, resolvedTotals.total, sanitizedAddress]);
+  }, [
+    dispatch,
+    navigate,
+    orderItems,
+    pricingPayload,
+    resolvedTotals.subtotal,
+    resolvedTotals.total,
+    sanitizedAddress,
+  ]);
 
   const handleManualRefresh = useCallback(() => {
     if (!paymentSession?.merchantTransactionId) {
@@ -536,7 +557,9 @@ const CheckoutPayment = () => {
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-base font-semibold text-secondary">Delivering to</h3>
+                  <h3 className="text-base font-semibold text-secondary">
+                    Delivering to
+                  </h3>
                   <p className="mt-1 text-sm text-medium-text">
                     Review your address before completing the payment.
                   </p>
@@ -553,15 +576,20 @@ const CheckoutPayment = () => {
                 <div className="mt-4 grid gap-3 text-sm text-secondary sm:grid-cols-2">
                   <div>
                     <p className="font-medium">{sanitizedAddress.fullName}</p>
-                    <p className="text-medium-text">{sanitizedAddress.mobile}</p>
+                    <p className="text-medium-text">
+                      {sanitizedAddress.mobile}
+                    </p>
                     {sanitizedAddress.email && (
-                      <p className="text-medium-text">{sanitizedAddress.email}</p>
+                      <p className="text-medium-text">
+                        {sanitizedAddress.email}
+                      </p>
                     )}
                   </div>
                   <div>
                     <p>{sanitizedAddress.addressLine}</p>
                     <p>
-                      {sanitizedAddress.city}, {sanitizedAddress.state} - {sanitizedAddress.pincode}
+                      {sanitizedAddress.city}, {sanitizedAddress.state} -{" "}
+                      {sanitizedAddress.pincode}
                     </p>
                     {sanitizedAddress.alternatePhone && (
                       <p className="text-medium-text">
@@ -574,7 +602,9 @@ const CheckoutPayment = () => {
             </section>
 
             <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h3 className="text-base font-semibold text-secondary">Payment options</h3>
+              <h3 className="text-base font-semibold text-secondary">
+                Payment options
+              </h3>
               <div className="mt-4 grid gap-3">
                 {paymentOptions.map((option) => {
                   const isActive = selectedMethod === option.id;
@@ -591,14 +621,22 @@ const CheckoutPayment = () => {
                     >
                       <span
                         className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full border-2 ${
-                          isActive ? "border-primary bg-primary" : "border-slate-300"
+                          isActive
+                            ? "border-primary bg-primary"
+                            : "border-slate-300"
                         }`}
                       >
-                        {isActive && <span className="h-2 w-2 rounded-full bg-white" />}
+                        {isActive && (
+                          <span className="h-2 w-2 rounded-full bg-white" />
+                        )}
                       </span>
                       <div className="space-y-1">
-                        <p className="text-base font-semibold text-secondary">{option.title}</p>
-                        <p className="text-sm text-medium-text">{option.description}</p>
+                        <p className="text-base font-semibold text-secondary">
+                          {option.title}
+                        </p>
+                        <p className="text-sm text-medium-text">
+                          {option.description}
+                        </p>
                       </div>
                     </button>
                   );
@@ -609,7 +647,9 @@ const CheckoutPayment = () => {
             <AnimatePresence mode="wait">
               {selectedMethod !== "cod" && (
                 <motion.section
-                  key={paymentSession ? "phonepe-session" : "phonepe-instructions"}
+                  key={
+                    paymentSession ? "phonepe-session" : "phonepe-instructions"
+                  }
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
@@ -639,22 +679,33 @@ const CheckoutPayment = () => {
                                 renderAs="svg"
                               />
                               <p className="text-sm font-medium text-secondary">
-                                Scan using the PhonePe app to pay {formatCurrency(paymentSession.amountInRupees, resolvedTotals.currency)}
+                                Scan using the PhonePe app to pay{" "}
+                                {formatCurrency(
+                                  paymentSession.amountInRupees,
+                                  resolvedTotals.currency
+                                )}
                               </p>
                             </>
                           ) : (
                             <p className="text-center text-sm text-medium-text">
-                              Generating QR code… follow the redirect link below to continue in the PhonePe app.
+                              Generating QR code… follow the redirect link below
+                              to continue in the PhonePe app.
                             </p>
                           )}
                         </div>
                         <div className="space-y-4">
                           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-secondary">
                             <div className="flex items-center justify-between gap-2">
-                              <span className="font-medium">Transaction ID</span>
+                              <span className="font-medium">
+                                Transaction ID
+                              </span>
                               <button
                                 type="button"
-                                onClick={() => handleCopyTransactionId(paymentSession.merchantTransactionId)}
+                                onClick={() =>
+                                  handleCopyTransactionId(
+                                    paymentSession.merchantTransactionId
+                                  )
+                                }
                                 className="text-xs font-semibold text-primary hover:underline"
                               >
                                 Copy
@@ -666,12 +717,19 @@ const CheckoutPayment = () => {
                             <p className="mt-3 flex items-center justify-between text-sm">
                               <span>Amount</span>
                               <span className="font-semibold text-secondary">
-                                {formatCurrency(paymentSession.amountInRupees, resolvedTotals.currency)}
+                                {formatCurrency(
+                                  paymentSession.amountInRupees,
+                                  resolvedTotals.currency
+                                )}
                               </span>
                             </p>
                             {paymentSession.initiatedAt && (
                               <p className="mt-1 text-xs text-medium-text">
-                                Initiated at {paymentSession.initiatedAt.toLocaleTimeString?.("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                Initiated at{" "}
+                                {paymentSession.initiatedAt.toLocaleTimeString?.(
+                                  "en-IN",
+                                  { hour: "2-digit", minute: "2-digit" }
+                                )}
                               </p>
                             )}
                           </div>
@@ -679,7 +737,9 @@ const CheckoutPayment = () => {
                           {paymentSession.redirectUrl && (
                             <button
                               type="button"
-                              onClick={() => handleOpenRedirect(paymentSession.redirectUrl)}
+                              onClick={() =>
+                                handleOpenRedirect(paymentSession.redirectUrl)
+                              }
                               className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white shadow hover:bg-primary-dark"
                             >
                               Open PhonePe payment page
@@ -717,12 +777,22 @@ const CheckoutPayment = () => {
                         How PhonePe checkout works
                       </h3>
                       <ol className="list-decimal space-y-2 pl-5">
-                        <li>Click “Pay &amp; Place Order” to create a secure PhonePe transaction.</li>
-                        <li>Scan the QR on desktop or continue in the PhonePe app on mobile.</li>
-                        <li>We’ll automatically confirm your payment and place the order.</li>
+                        <li>
+                          Click “Pay &amp; Place Order” to create a secure
+                          PhonePe transaction.
+                        </li>
+                        <li>
+                          Scan the QR on desktop or continue in the PhonePe app
+                          on mobile.
+                        </li>
+                        <li>
+                          We’ll automatically confirm your payment and place the
+                          order.
+                        </li>
                       </ol>
                       <p className="text-xs text-slate-500">
-                        Need to change the payment option? You can always switch back to Cash on Delivery.
+                        Need to change the payment option? You can always switch
+                        back to Cash on Delivery.
                       </p>
                     </div>
                   )}
@@ -739,7 +809,9 @@ const CheckoutPayment = () => {
                 Back to Address
               </button>
               <motion.button
-                whileHover={{ scale: isProcessing || isAwaitingConfirmation ? 1 : 1.02 }}
+                whileHover={{
+                  scale: isProcessing || isAwaitingConfirmation ? 1 : 1.02,
+                }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handlePlaceOrder}
                 disabled={isProcessing || isAwaitingConfirmation}
@@ -760,27 +832,55 @@ const CheckoutPayment = () => {
 
           <aside className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-10 lg:h-max">
             <div>
-              <h3 className="text-lg font-semibold text-secondary">Order Summary</h3>
+              <h3 className="text-lg font-semibold text-secondary">
+                Order Summary
+              </h3>
               <div className="mt-4 space-y-3 text-sm text-medium-text">
                 <div className="flex items-center justify-between">
                   <span>Subtotal</span>
-                  <span>{formatCurrency(resolvedTotals.subtotal, resolvedTotals.currency)}</span>
+                  <span>
+                    {formatCurrency(
+                      resolvedTotals.subtotal,
+                      resolvedTotals.currency
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Shipping Fee</span>
-                  <span>{formatCurrency(resolvedTotals.shippingFee, resolvedTotals.currency)}</span>
+                  <span>
+                    {formatCurrency(
+                      resolvedTotals.shippingFee,
+                      resolvedTotals.currency
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Tax</span>
-                  <span>{formatCurrency(resolvedTotals.taxAmount, resolvedTotals.currency)}</span>
+                  <span>
+                    {formatCurrency(
+                      resolvedTotals.taxAmount,
+                      resolvedTotals.currency
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between text-success font-medium">
                   <span>Discount</span>
-                  <span>-{formatCurrency(resolvedTotals.discount, resolvedTotals.currency)}</span>
+                  <span>
+                    -
+                    {formatCurrency(
+                      resolvedTotals.discount,
+                      resolvedTotals.currency
+                    )}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-base font-semibold text-secondary">
                   <span>Total</span>
-                  <span>{formatCurrency(resolvedTotals.total, resolvedTotals.currency)}</span>
+                  <span>
+                    {formatCurrency(
+                      resolvedTotals.total,
+                      resolvedTotals.currency
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -796,14 +896,19 @@ const CheckoutPayment = () => {
                     className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3"
                   >
                     <div className="flex-1">
-                      <p className="text-sm font-medium text-secondary">{item.name}</p>
+                      <p className="text-sm font-medium text-secondary">
+                        {item.name}
+                      </p>
                       <p className="text-xs text-medium-text">
                         Qty {item.quantity}
                         {item.size ? ` · Size ${item.size}` : ""}
                       </p>
                     </div>
                     <span className="text-sm font-semibold text-secondary">
-                      {formatCurrency((item.price || 0) * item.quantity, resolvedTotals.currency)}
+                      {formatCurrency(
+                        (item.price || 0) * item.quantity,
+                        resolvedTotals.currency
+                      )}
                     </span>
                   </div>
                 ))}
@@ -816,7 +921,8 @@ const CheckoutPayment = () => {
             </div>
 
             <div className="rounded-2xl bg-primary/5 p-4 text-sm text-medium-text">
-              All card and UPI transactions on MegaMart are 100% secure and encrypted.
+              All card and UPI transactions on MegaMart are 100% secure and
+              encrypted.
             </div>
           </aside>
         </div>
@@ -843,7 +949,8 @@ const CheckoutPayment = () => {
                 Waiting for PhonePe confirmation…
               </h3>
               <p className="mt-2 text-sm text-medium-text">
-                Complete the payment in the PhonePe app. We’ll place your order as soon as it is confirmed.
+                Complete the payment in the PhonePe app. We’ll place your order
+                as soon as it is confirmed.
               </p>
               {paymentSession?.merchantTransactionId && (
                 <p className="mt-4 truncate text-xs font-mono text-slate-500">
@@ -856,6 +963,6 @@ const CheckoutPayment = () => {
       </AnimatePresence>
     </>
   );
-}
+};
 
 export default CheckoutPayment;
